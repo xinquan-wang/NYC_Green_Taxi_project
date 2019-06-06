@@ -1,0 +1,12 @@
+name: NYC_Green_Taxi_project
+title: NYC_Green_Taxi_project
+username:
+account: xinquanwang
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 895564
+bundleId: 2054277
+url: https://xinquanwang.shinyapps.io/NYC_Green_Taxi_project/
+when: 1556766113.3429
+asMultiple: FALSE
+asStatic: FALSE

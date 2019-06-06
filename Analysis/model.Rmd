@@ -1,0 +1,79 @@
+---
+title: "Model"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### Train test split
+
+```{r package echo = FALSE}
+library(DT)
+library(data.table)
+library(caret) #this package has the createDataPartition function
+library(data.table)
+library(DT)
+library(dplyr)
+library(nnet)
+library(class)
+library(rpart)
+library(FNN)
+library(randomForest)
+library(glmnet)
+library(e1071)
+library(gbm)
+library(xgboost)
+library(MASS)
+library(klaR)
+library(caret)
+```
+
+```{r load_data}
+set.seed(10)
+final_dt <- fread( input = "../Data/pruned_green_cab.csv")
+```
+
+
+```{r feature_selection}
+names(final_dt)
+selected_dt <- final_dt
+```
+
+```{r train_test_split}
+temp_dt <- selected_dt[1:1000000,]
+#creating indices
+trainIndex <- createDataPartition(temp_dt$N,p=0.75,list=FALSE)
+#splitting data into training/testing data using the trainIndex object
+cab_TRAIN <- temp_dt[trainIndex,] #training data (75% of data) 
+cab_TEST <- temp_dt[-trainIndex,] #testing data (25% of data)
+names(cab_TRAIN)
+```
+
+### target is fare_amount tip_amount demand(N)
+
+```{r load_model_library}
+
+```
+
+```{r linear_model}
+linear <- lm(N~.,data=cab_TRAIN[,-c(15,16)])
+
+pred <- predict(linear,x=cab_TEST[,-c(15,16,17)])
+
+RMSE = sqrt( mean( (pred - unlist(cab_TEST[,17]))^2 ) )
+RMSE
+```
+
+```{r knn_r}
+model_knn <- knn.reg(cab_TRAIN, test = NULL, y, k = 3, algorithm=c("kd_tree",
+        "cover_tree", "brute"))
+
+model_knn.reg <- knn.reg(train = cab_TRAIN[,-c(15,16,17)],
+                      test = cab_TEST[,-c(17)],
+                      cl = cab_TRAIN[,c(15,16,17)],
+                      k = K)
+``
+

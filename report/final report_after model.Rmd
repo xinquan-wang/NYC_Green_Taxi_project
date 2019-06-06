@@ -1,0 +1,147 @@
+---
+title: "final project"
+author: "Xinquan Wang"
+date: "5/6/2019"
+output: pdf_document
+---
+```{r warning=FALSE, echo=FALSE}
+library(DT)
+library(data.table)
+library(caret)
+library(glmnet)
+library(dplyr)
+library(randomForest)
+```
+
+
+```{r, load_data, include=FALSE, warning=FALSE}
+dt_init <- fread(input = "../Data/pruned_green_cab.csv")
+dt_init <- na.omit(dt_init)
+```
+
+## Feature Selection
+
+We remove some irrelevant columns, the remaining columns are:
+
+```{r feature_selection}
+dt_select <- dt_init[,-c("RatecodeID","TripType","DropoffHour","DOLocationID","PaymentType","Weekday")]
+names(dt_select)
+```
+
+Randomly select 0.1 million of data:
+
+```{r scale_sample}
+train.size <- 10000
+# dt_model<-dt_select[sample(nrow(dt_select),train.size),]
+dt_model <- sample_n(dt_select, train.size)
+```
+
+## Model
+We have split the data into a training and test set. The training set is 75% of the model, and the test set is 25% of our model. We then performed Lasso Regression, Ridge Regression, Linear Regression, and Random Forest on the data in order to predict N and Average fare amount. We chose Ridge and Lasso Regression in order to fight against any overfitting that we might have done. We have chosen linear regression as a baseline model to compare our other models to. We have chosen Random Forest because it is known to be an accurate Machine learning algorithm in terms of prediction. However, the Random Forest algorithm tends to be very computationally expensive with a larger dataset. In order to combat the slow running algorithm, we have only used a portion of our dataset in order to run the model.  
+We have also created a User Interface with R Shiny that displays the distribution of taxicab demand, average fare amount, average trip duration and average tips given the time, date, and weather.
+
+
+```{r train_test_split, warning=FALSE, echo=TRUE}
+set.seed(101)
+
+# Creating indices
+trainIndex <- createDataPartition(dt_model$N,p=0.75,list=FALSE)
+
+# Splitting data into training/testing data using the trainIndex object
+train.set <- dt_model[trainIndex,] # Training data (75% of data)
+test.set <- dt_model[-trainIndex,] # Testing data (25% of data)
+```
+
+
+### Regression on Demand
+#### Regression Models
+
+```{r, warning=FALSE, echo=TRUE}
+func_model.eval<-function(label,train.set,test.set,type){
+  # Set formula
+  fml<-as.formula(paste0(label,"~."))
+  
+  # Prepare test set
+  test.X <- test.set[, !label, with=FALSE] 
+  test.Y <- test.set[,..label]
+  
+  grid = 10 ^ seq(5, -2, length = 100)
+  
+  # Linear
+  if (type=="linear"){model <- lm(fml,data=train.set)}
+  # Ridge
+  else if (type=="ridge"){model <- train(fml, data = train.set,method = "glmnet",metric = "RMSE",tuneGrid = expand.grid(alpha = 0,lambda=grid))}
+  # Lasso
+  else if (type=="lasso"){model <- train(fml, data = train.set,method = "glmnet",metric = "RMSE",tuneGrid = expand.grid(alpha = 1,lambda=grid))}
+
+  
+  pred<- predict(model,test.X)
+  RMSE = sqrt(mean((pred - unlist(test.Y))^2))
+  
+  return(RMSE)
+}
+```
+
+```{r warning=FALSE, echo=TRUE}
+func_model.eval("N",train.set,test.set,"linear")
+func_model.eval("N",train.set,test.set,"lasso")
+func_model.eval("N",train.set,test.set,"ridge")
+```
+
+
+#### Random Forest Models
+RMSE of Random Forest
+
+```{r warning=FALSE, echo=FALSE, warning=FALSE}
+rf.model<-randomForest(N~.,data=train.set[sample(nrow(train.set),10000),])
+rf.pred <- predict(rf.model, newdata=test.set[,-c("N")])
+sqrt(mean((rf.pred - unlist(test.set[,N]))^2))
+```
+
+
+### Regression on Average Revenue
+#### Regression Models
+```{r}
+func_model.eval("AvgRevenue",train.set,test.set,"linear")
+func_model.eval("AvgRevenue",train.set,test.set,"lasso")
+func_model.eval("AvgRevenue",train.set,test.set,"ridge")
+```
+
+
+#### Random Forest Models
+```{r}
+rf.model<-randomForest(AvgRevenue~.,data=train.set)
+rf.pred <- predict(rf.model, newdata=test.set[,-c("AvgRevenue")])
+sqrt(mean( (rf.pred - unlist(test.set$AvgRevenue))^2))
+```
+
+
+## Interpretation
+We notice that the Root Mean Squared Error for all three regressions are very similar. This is because Lasso and Ridge regression are almost exactly the same except for the fact that they utilize different penalizing errors for overfitting. The reason why we notice that the errors are almost identical is because we have already performed sufficient variable selection, so the models’ RMSE are close to one another. As predicted, the Root Mean Squared Error of Random Forest is less than half of the other three models because Random Forest is known for its accurate prediction results despite the fact that we only used 10% of the training data in order to train our Random Forest Algorithm. 
+
+
+## Assumptions
+1. We did not scale the data because our 4 models, Simple linear regression, Ridge regression, Lasso regression, and Random Forest are not sensitive to the magnitude of the data. Also since our comparison is based on one same data, scaling is not necessary here.  
+2. The training data size for three linear models is 100 thousands rows, for Random Forest is 10 thousands rows. All of models use the same test set. We have also tried to increase the training size of the linear models.  However, this barely made a difference in the decrease of the  Root Mean Squared Error. When attempting to increase the training set of the Random Forest Model, when we increased the training size from 10,000 to 50,000 observations, the RMSE reduces by roughly 100.  
+3. We assume that the dataset is either complete or representative of the New York taxicab market.  
+4. We assume that any negative values in the cost of transportation is due to data entry errors in the sense that the taxicab driver accidentally inputted a negative value rather than the positive version of that value.  
+5. We assume that any values that fall out of the acceptable range for the “TotalAmount” variable can be replaced by the median score.
+
+## Limitations and Uncertainties
+1. The limited features. Other than the green cab data provided by NYC government, we included the hourly weather to predict the demand. However, there are other possible factors that affect the demand for cabs than weather.  
+2. We did not take advantage of the Yellow Cab Dataset. There might be factors of yellow taxicabs that we did not take into consideration when generalizing over all taxicab trips in New York City.  
+3. Our model is mainly limited to New York City. If we apply our model to other cities, it might not provide accurate predictions due to the difference in locations.  
+4. Our data only includes the data from 2018. There are time effects that we are not taking into consideration when analyzing our data.  
+5. Due to the large size of data and the limited computational power that we have, we cannot run more complicated models like neural networks, and must limit the training size of our Random Forest model.
+
+## Areas of Future Investigation
+We would like to improve on our models further, through investigating data and variables outside of the weather and green taxicab datasets. Some other variables and datasets that we’d like to consider for future investigation include the datasets from previous years provided in the same website, yellow cab data, and other variables that expand on the information of the passengers such as their ethnicity, genders, marital status, and more.	  
+If we had more time, we would have created more sophisticated models, done more literature review on the taxicab market in New York, and possibly expanded our model to include locations outside of New York City as well. 	  
+We would have also liked to build a model that calculated the daily profits of taxicabs in order to explore what factors most influence the profits of the taxicab market. However, because profit is Revenue - Total Cost and we lack the dataset for the cost of maintenance for the green taxicab, so we are unable to do so without further digging. 
+
+## References
+https://www.tutorialspoint.com/r/r_random_forest.htm
+https://cran.r-project.org/web/packages/glmnet/glmnet.pdf
+https://www1.nyc.gov/site/tlc/passengers/passenger-frequently-asked-questions.page
+
+
